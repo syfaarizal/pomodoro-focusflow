@@ -5,6 +5,8 @@ import {
   Zap, Bell, ListChecks, Trash2, Plus, CheckCircle2,
   Headphones
 } from 'lucide-react';
+import lofiSound from './assets/Little-Wishes-chosic.com_.mp3';
+import digitalAlarm from './assets/alarm-clock-90867.mp3';
 
 const App = () => {
   // --- State Utama ---
@@ -58,7 +60,7 @@ const App = () => {
   // --- Data Aset ---
   const musicList = [
     { id: 'none', name: 'No Music', url: null },
-    { id: 'lofi', name: '🎧 Lo-fi Chill', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { id: 'lofi', name: '🎧 Lo-fi Chill', url: lofiSound },
     { id: 'jazz', name: '☕ Jazz Coffee', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
     { id: 'study', name: '📖 Study Beats', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
     { id: 'rain', name: '🌧️ Deep Rain', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' }
@@ -75,7 +77,7 @@ const App = () => {
 
   const alarmSounds = {
     bell: 'https://assets.mixkit.co/sfx/preview/mixkit-classic-alarm-995.mp3',
-    digital: 'https://assets.mixkit.co/sfx/preview/mixkit-digital-clock-digital-alarm-200.mp3',
+    digital: digitalAlarm,
     chime: 'https://assets.mixkit.co/sfx/preview/mixkit-wind-chime-599.mp3',
     minimal: 'https://assets.mixkit.co/sfx/preview/mixkit-simple-notification-alert-2630.mp3'
   };
@@ -127,6 +129,9 @@ const App = () => {
     const currentTrack = musicList.find(m => m.id === settings.musicTrack);
     if (bgMusicAudio.current) {
       bgMusicAudio.current.volume = settings.musicVolume;
+
+      bgMusicAudio.current.load();
+
       if (isMusicPlaying && currentTrack && currentTrack.url) {
         bgMusicAudio.current.play().catch(() => setIsMusicPlaying(false));
       } else {
@@ -137,9 +142,9 @@ const App = () => {
 
   useEffect(() => {
     if (alarmAudio.current) {
-      alarmAudio.current.volume = settings.alarmVolume;
+      alarmAudio.current.load();
     }
-  }, [settings.alarmVolume]);
+  }, [settings.alarmSound]);
 
   const toggleTimer = () => setIsActive(!isActive);
   const resetTimer = () => { setIsActive(false); setTimeLeft(modeTimes[mode]); };
