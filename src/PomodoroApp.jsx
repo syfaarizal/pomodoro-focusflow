@@ -5,8 +5,8 @@ import {
   Zap, Bell, ListChecks, Trash2, Plus, CheckCircle2,
   Headphones
 } from 'lucide-react';
-import lofiSound from './assets/Little-Wishes-chosic.com_.mp3';
-import digitalAlarm from './assets/alarm-clock-90867.mp3';
+import lofiSound from './assets/music/lo-fi-chill.mp3';
+import digitalAlarm from './assets/alarm/digital.mp3';
 
 const App = () => {
   // --- State Utama ---
