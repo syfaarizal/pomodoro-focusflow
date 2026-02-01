@@ -308,7 +308,7 @@ const App = () => {
               <button onClick={() => setShowSettings(false)} className="p-3 hover:bg-white/10 rounded-2xl transition">✕</button>
             </div>
 
-            <div className="space-y-6 overflow-y-auto max-h-[65vh] pr-4 custom-scrollbar">
+            <div className="space-y-6 overflow-y-auto max-h-[65vh] pr-4 pl-4 custom-scrollbar">
               <div className="grid grid-cols-3 gap-4">
                 {['pomodoro', 'shortBreak', 'longBreak'].map((field) => (
                   <div key={field}>
