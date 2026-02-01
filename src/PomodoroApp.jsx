@@ -6,7 +6,13 @@ import {
   Headphones
 } from 'lucide-react';
 import lofiSound from './assets/music/lo-fi-chill.mp3';
+import jazzSound from './assets/music/jazz.mp3';
+import studySound from './assets/music/study-beats.mp3';
+import rainSound from './assets/music/rain.mp3';
 import digitalAlarm from './assets/alarm/digital.mp3';
+import bellAlarm from './assets/alarm/bell.mp3'
+import chimeAlarm from './assets/alarm/chime.mp3'
+import minimalAlarm from './assets/alarm/minimal.mp3'
 
 const App = () => {
   // --- State Utama ---
@@ -61,9 +67,9 @@ const App = () => {
   const musicList = [
     { id: 'none', name: 'No Music', url: null },
     { id: 'lofi', name: '🎧 Lo-fi Chill', url: lofiSound },
-    { id: 'jazz', name: '☕ Jazz Coffee', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
-    { id: 'study', name: '📖 Study Beats', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
-    { id: 'rain', name: '🌧️ Deep Rain', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' }
+    { id: 'jazz', name: '☕ Jazz Coffee', url: jazzSound },
+    { id: 'study', name: '📖 Study Beats', url: studySound },
+    { id: 'rain', name: '🌧️ Deep Rain', url: rainSound }
   ];
 
   const backgrounds = [
@@ -76,10 +82,10 @@ const App = () => {
   ];
 
   const alarmSounds = {
-    bell: 'https://assets.mixkit.co/sfx/preview/mixkit-classic-alarm-995.mp3',
+    bell: bellAlarm,
     digital: digitalAlarm,
-    chime: 'https://assets.mixkit.co/sfx/preview/mixkit-wind-chime-599.mp3',
-    minimal: 'https://assets.mixkit.co/sfx/preview/mixkit-simple-notification-alert-2630.mp3'
+    chime: chimeAlarm,
+    minimal: minimalAlarm
   };
 
   // --- Logika Timer ---
