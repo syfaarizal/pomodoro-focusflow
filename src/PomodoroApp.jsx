@@ -30,16 +30,12 @@ const App = () => {
     autoStartPomodoros: false,
     alarmSound: 'digital',
     theme: 'dark',
-    background: 'gradient-slate', // MODIFIED: Set default to Quiet Stone
+    background: 'gradient-slate', 
     musicTrack: 'lofi',
     alarmVolume: 0.6,
     musicVolume: 0.4
   });
 
-  // State untuk feedback visual "Tersimpan"
-  const [isSaved, setIsSaved] = useState(false);
-
-  // Hitung waktu berdasarkan mode (dalam detik)
   const modeTimes = useMemo(() => ({
     pomodoro: settings.pomodoroTime * 60,
     shortBreak: settings.shortBreakTime * 60,
@@ -47,21 +43,41 @@ const App = () => {
   }), [settings.pomodoroTime, settings.shortBreakTime, settings.longBreakTime]);
 
   const [timeLeft, setTimeLeft] = useState(modeTimes.pomodoro);
+  const [isSaved, setIsSaved] = useState(false);
 
-  // --- Task State ---
+  // --- Task & UI State ---
   const [tasks, setTasks] = useState([
     { id: 1, text: 'Selesaikan sesi fokus pertama', completed: true },
     { id: 2, text: 'Minum air putih', completed: false }
   ]);
   const [newTask, setNewTask] = useState('');
-
-  // --- UI State ---
   const [showSettings, setShowSettings] = useState(false);
   const [showTasks, setShowTasks] = useState(true);
+
+  // --- Audio Logic (Fade Out) ---
+  const stopAlarmWithFade = () => {
+    if (alarmAudio.current) {
+      clearInterval(fadeInterval.current);
+      let volume = alarmAudio.current.volume;
+      
+      fadeInterval.current = setInterval(() => {
+        if (volume > 0.05) {
+          volume -= 0.05;
+          alarmAudio.current.volume = volume;
+        } else {
+          clearInterval(fadeInterval.current);
+          alarmAudio.current.pause();
+          alarmAudio.current.currentTime = 0;
+          alarmAudio.current.volume = settings.alarmVolume; // Reset volume
+        }
+      }, 30);
+    }
+  };
 
   // --- Audio Refs ---
   const alarmAudio = useRef(null);
   const bgMusicAudio = useRef(null);
+  const fadeInterval = useRef(null);
 
   // --- Data Aset ---
   const musicList = [
@@ -101,13 +117,20 @@ const App = () => {
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
+  // Fungsi untuk menghentikan alarm
+  const stopAlarm = () => {
+    if (alarmAudio.current) {
+      alarmAudio.current.pause();
+      alarmAudio.current.currentTime = 0;
+    }
+  };
+
   const handleTimerComplete = () => {
     setIsActive(false);
-    
-    if (alarmAudio.current && alarmSounds[settings.alarmSound]) {
+    if (alarmAudio.current) {
       alarmAudio.current.volume = settings.alarmVolume;
       alarmAudio.current.currentTime = 0;
-      alarmAudio.current.play().catch((e) => console.warn("Audio play blocked", e));
+      alarmAudio.current.play().catch((e) => console.warn("Audio blocked", e));
     }
 
     if (mode === 'pomodoro') {
@@ -116,11 +139,9 @@ const App = () => {
       const isLongBreak = nextCount % 4 === 0;
       const nextMode = isLongBreak ? 'longBreak' : 'shortBreak';
       setMode(nextMode);
-      setTimeLeft(modeTimes[nextMode]);
       if (settings.autoStartBreaks) setIsActive(true);
     } else {
       setMode('pomodoro');
-      setTimeLeft(modeTimes.pomodoro);
       if (settings.autoStartPomodoros) setIsActive(true);
     }
   };
@@ -152,8 +173,16 @@ const App = () => {
     }
   }, [settings.alarmSound]);
 
-  const toggleTimer = () => setIsActive(!isActive);
-  const resetTimer = () => { setIsActive(false); setTimeLeft(modeTimes[mode]); };
+  const toggleTimer = () => {
+    if (isActive) stopAlarmWithFade();
+    setIsActive(!isActive);
+  };
+
+  const resetTimer = () => { 
+    setIsActive(false); 
+    stopAlarmWithFade(); 
+    setTimeLeft(modeTimes[mode]); 
+  };
 
   const addTask = () => {
     if (newTask.trim()) {
