@@ -17,7 +17,7 @@ import minimalAlarm from './assets/alarm/minimal.mp3'
 const App = () => {
   // --- State Utama ---
   const [isActive, setIsActive] = useState(false);
-  const [mode, setMode] = useState('pomodoro'); // 'pomodoro', 'shortBreak', 'longBreak'
+  const [mode, setMode] = useState('pomodoro');
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   
@@ -30,7 +30,7 @@ const App = () => {
     autoStartPomodoros: false,
     alarmSound: 'digital',
     theme: 'dark',
-    background: 'gradient-purple',
+    background: 'gradient-slate', // MODIFIED: Set default to Quiet Stone
     musicTrack: 'lofi',
     alarmVolume: 0.6,
     musicVolume: 0.4
