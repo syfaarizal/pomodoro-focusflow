@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Play, Pause, RotateCcw, Settings, CheckSquare, 
-  Volume2, VolumeX, Palette, Music, Sun, Moon, 
+  Volume2, VolumeX, Music, 
   Zap, Bell, ListChecks, Trash2, Plus, CheckCircle2,
   Headphones
 } from 'lucide-react';
@@ -12,6 +12,7 @@ const App = () => {
   const [mode, setMode] = useState('pomodoro');
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
   
   // --- Settings State ---
   const [settings, setSettings] = useState({
@@ -47,17 +48,17 @@ const App = () => {
   const [showTasks, setShowTasks] = useState(true);
 
   // --- Audio Refs ---
-  const alarmAudio = useRef(null);
-  const bgMusicAudio = useRef(null);
-  const fadeInterval = useRef(null);
+  const audioContextRef = useRef(null);
+  const musicOscillatorRef = useRef(null);
+  const musicGainRef = useRef(null);
 
-  // --- Data Aset (menggunakan placeholder untuk demo) ---
+  // --- Data Aset ---
   const musicList = useMemo(() => [
-    { id: 'none', name: 'No Music', url: null },
-    { id: 'lofi', name: '🎧 Lo-fi Chill', url: null },
-    { id: 'jazz', name: '☕ Jazz Coffee', url: null },
-    { id: 'study', name: '📖 Study Beats', url: null },
-    { id: 'rain', name: '🌧️ Deep Rain', url: null }
+    { id: 'none', name: 'No Music', freq: null },
+    { id: 'lofi', name: '🎧 Lo-fi Vibes', freq: 110 },
+    { id: 'rain', name: '🌧️ Rain Sounds', freq: 'noise' },
+    { id: 'cafe', name: '☕ Café Ambience', freq: 130 },
+    { id: 'nature', name: '🌲 Nature Sounds', freq: 'noise' }
   ], []);
 
   const backgrounds = useMemo(() => [
@@ -69,84 +70,188 @@ const App = () => {
     { id: 'gradient-slate', name: 'Quiet Stone', class: 'from-zinc-900 via-slate-900 to-stone-900' }
   ], []);
 
-  // Menggunakan data URLs untuk alarm sounds (placeholder beeps)
-  const alarmSounds = useMemo(() => ({
-    bell: createBeepSound(800, 0.3, 0.5),
-    digital: createBeepSound(1000, 0.2, 0.3),
-    chime: createBeepSound(600, 0.4, 0.6),
-    minimal: createBeepSound(400, 0.2, 0.2)
-  }), []);
-
-  // Fungsi untuk membuat suara beep sederhana
-  function createBeepSound(frequency, duration, volume) {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-      
-      return { audioContext, oscillator, gainNode, duration };
-    } catch (e) {
-      console.warn('Web Audio API not supported', e);
-      return null;
-    }
-  }
-
-  // --- Audio Logic (Fade Out) ---
-  const stopAlarmWithFade = useCallback(() => {
-    if (alarmAudio.current) {
-      clearInterval(fadeInterval.current);
-      let volume = alarmAudio.current.volume;
-      
-      fadeInterval.current = setInterval(() => {
-        if (volume > 0.05) {
-          volume -= 0.05;
-          if (alarmAudio.current) {
-            alarmAudio.current.volume = volume;
-          }
-        } else {
-          clearInterval(fadeInterval.current);
-          if (alarmAudio.current) {
-            alarmAudio.current.pause();
-            alarmAudio.current.currentTime = 0;
-            alarmAudio.current.volume = settings.alarmVolume;
-          }
-        }
-      }, 30);
-    }
-  }, [settings.alarmVolume]);
-
-  // Fungsi untuk menghentikan alarm
-  const stopAlarm = useCallback(() => {
-    if (alarmAudio.current) {
-      alarmAudio.current.pause();
-      alarmAudio.current.currentTime = 0;
-    }
-  }, []);
-
-  // Play alarm menggunakan Web Audio API
-  const playAlarmSound = useCallback(() => {
-    const soundData = alarmSounds[settings.alarmSound];
-    if (soundData && soundData.oscillator) {
+  // Initialize Audio Context
+  const initAudio = useCallback(() => {
+    if (!audioContextRef.current) {
       try {
-        const { audioContext, oscillator, gainNode, duration } = soundData;
-        gainNode.gain.setValueAtTime(settings.alarmVolume, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + duration);
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContextRef.current = new AudioContext();
+        setAudioInitialized(true);
+        console.log('Audio Context initialized');
       } catch (e) {
-        console.warn('Error playing alarm', e);
+        console.warn('Web Audio API not supported', e);
       }
     }
-  }, [settings.alarmSound, settings.alarmVolume, alarmSounds]);
+    return audioContextRef.current;
+  }, []);
+
+  // Play alarm sound
+  const playAlarmSound = useCallback(() => {
+    const audioContext = initAudio();
+    if (!audioContext) return;
+
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    gainNode.gain.value = settings.alarmVolume;
+
+    switch (settings.alarmSound) {
+      case 'bell':
+        // Bell sound with multiple frequencies
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        oscillator.start(now);
+        oscillator.stop(now + 0.8);
+        
+        // Add harmonics
+        const bell2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        bell2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        bell2.frequency.value = 1200;
+        bell2.type = 'sine';
+        gain2.gain.setValueAtTime(settings.alarmVolume * 0.5, now + 0.05);
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        bell2.start(now + 0.05);
+        bell2.stop(now + 0.8);
+        break;
+
+      case 'digital':
+        // Digital beep pattern
+        oscillator.frequency.value = 1000;
+        oscillator.type = 'square';
+        
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now);
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now + 0.1);
+        gainNode.gain.setValueAtTime(0, now + 0.1);
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now + 0.25);
+        gainNode.gain.setValueAtTime(0, now + 0.35);
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now + 0.5);
+        gainNode.gain.setValueAtTime(0, now + 0.6);
+        
+        oscillator.start(now);
+        oscillator.stop(now + 0.7);
+        break;
+
+      case 'chime':
+        // Gentle chime
+        oscillator.frequency.value = 659; // E5
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1);
+        oscillator.start(now);
+        oscillator.stop(now + 1);
+        break;
+
+      case 'minimal':
+        // Single soft tone
+        oscillator.frequency.value = 440;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        oscillator.start(now);
+        oscillator.stop(now + 0.5);
+        break;
+
+      default:
+        oscillator.frequency.value = 440;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(settings.alarmVolume, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        oscillator.start(now);
+        oscillator.stop(now + 0.3);
+    }
+  }, [settings.alarmSound, settings.alarmVolume, initAudio]);
+
+  // Handle background music
+  useEffect(() => {
+    const audioContext = audioContextRef.current;
+    if (!audioContext) return;
+
+    const currentTrack = musicList.find(m => m.id === settings.musicTrack);
+
+    // Stop existing music
+    if (musicOscillatorRef.current) {
+      try {
+        musicOscillatorRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
+      musicOscillatorRef.current = null;
+    }
+
+    if (musicGainRef.current) {
+      musicGainRef.current.disconnect();
+      musicGainRef.current = null;
+    }
+
+    // Start new music if needed
+    if (isMusicPlaying && currentTrack && currentTrack.freq) {
+      try {
+        if (currentTrack.freq === 'noise') {
+          // Create noise
+          const bufferSize = 4096;
+          const whiteNoise = audioContext.createScriptProcessor(bufferSize, 1, 1);
+          
+          whiteNoise.onaudioprocess = (e) => {
+            const output = e.outputBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              output[i] = Math.random() * 2 - 1;
+            }
+          };
+
+          const gainNode = audioContext.createGain();
+          gainNode.gain.value = settings.musicVolume * 0.1;
+          
+          whiteNoise.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          musicOscillatorRef.current = whiteNoise;
+          musicGainRef.current = gainNode;
+        } else {
+          // Create tone
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.frequency.value = currentTrack.freq;
+          oscillator.type = 'sine';
+          gainNode.gain.value = settings.musicVolume * 0.3;
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          oscillator.start();
+          
+          musicOscillatorRef.current = oscillator;
+          musicGainRef.current = gainNode;
+        }
+      } catch (e) {
+        console.warn('Error starting music:', e);
+      }
+    }
+
+    return () => {
+      if (musicOscillatorRef.current) {
+        try {
+          if (musicOscillatorRef.current.stop) {
+            musicOscillatorRef.current.stop();
+          }
+          if (musicOscillatorRef.current.disconnect) {
+            musicOscillatorRef.current.disconnect();
+          }
+        } catch (e) {
+          // Already stopped
+        }
+      }
+    };
+  }, [isMusicPlaying, settings.musicTrack, settings.musicVolume, musicList]);
 
   const handleTimerComplete = useCallback(() => {
     setIsActive(false);
@@ -169,7 +274,7 @@ const App = () => {
     }
   }, [mode, completedPomodoros, settings.autoStartBreaks, settings.autoStartPomodoros, playAlarmSound]);
 
-  // --- Logika Timer (FIXED) ---
+  // Timer logic
   useEffect(() => {
     let interval = null;
     if (isActive && timeLeft > 0) {
@@ -189,69 +294,20 @@ const App = () => {
     };
   }, [isActive, timeLeft, handleTimerComplete]);
 
-  // Reset timer ketika mode berubah dan timer tidak aktif
+  // Reset timer when mode changes
   useEffect(() => {
     if (!isActive) {
       setTimeLeft(modeTimes[mode]);
     }
   }, [modeTimes, mode, isActive]);
 
-  // Inisialisasi audio elements
-  useEffect(() => {
-    alarmAudio.current = new Audio();
-    bgMusicAudio.current = new Audio();
-    bgMusicAudio.current.loop = true;
-
-    return () => {
-      if (alarmAudio.current) {
-        alarmAudio.current.pause();
-        alarmAudio.current = null;
-      }
-      if (bgMusicAudio.current) {
-        bgMusicAudio.current.pause();
-        bgMusicAudio.current = null;
-      }
-      if (fadeInterval.current) {
-        clearInterval(fadeInterval.current);
-      }
-    };
-  }, []);
-
-  // Handle music playback
-  useEffect(() => {
-    const currentTrack = musicList.find(m => m.id === settings.musicTrack);
-    
-    if (bgMusicAudio.current) {
-      bgMusicAudio.current.volume = settings.musicVolume;
-
-      if (currentTrack && currentTrack.url) {
-        bgMusicAudio.current.src = currentTrack.url;
-        
-        if (isMusicPlaying) {
-          bgMusicAudio.current.play().catch(() => {
-            console.warn('Music playback failed');
-            setIsMusicPlaying(false);
-          });
-        } else {
-          bgMusicAudio.current.pause();
-        }
-      } else {
-        bgMusicAudio.current.pause();
-        if (settings.musicTrack !== 'none') {
-          console.log('Music feature requires audio files to be configured');
-        }
-      }
-    }
-  }, [settings.musicVolume, isMusicPlaying, settings.musicTrack, musicList]);
-
   const toggleTimer = () => {
-    if (isActive) stopAlarmWithFade();
+    initAudio();
     setIsActive(!isActive);
   };
 
   const resetTimer = () => { 
     setIsActive(false); 
-    stopAlarmWithFade(); 
     setTimeLeft(modeTimes[mode]); 
   };
 
@@ -263,7 +319,13 @@ const App = () => {
   };
 
   const playTestAlarm = () => {
+    initAudio();
     playAlarmSound();
+  };
+
+  const toggleMusic = () => {
+    initAudio();
+    setIsMusicPlaying(!isMusicPlaying);
   };
 
   const handleSaveSettings = () => {
@@ -283,7 +345,6 @@ const App = () => {
   const progress = ((modeTimes[mode] - timeLeft) / modeTimes[mode]) * 100;
   const currentBg = backgrounds.find(b => b.id === settings.background) || backgrounds[0];
   const sessionsToLongBreak = 4 - (completedPomodoros % 4);
-  const currentMusicUrl = musicList.find(m => m.id === settings.musicTrack)?.url;
 
   return (
     <div className={`min-h-screen transition-all duration-700 flex flex-col font-sans bg-gradient-to-br ${currentBg.class} ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -302,7 +363,7 @@ const App = () => {
 
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setIsMusicPlaying(!isMusicPlaying)}
+            onClick={toggleMusic}
             disabled={settings.musicTrack === 'none'}
             className={`p-3 rounded-2xl backdrop-blur-md transition-all ${isMusicPlaying ? 'bg-pink-500 shadow-lg shadow-pink-500/30' : 'bg-white/10 hover:bg-white/20'} ${settings.musicTrack === 'none' ? 'opacity-30 cursor-not-allowed' : ''}`}
           >
@@ -404,13 +465,13 @@ const App = () => {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-md bg-black/40 animate-in fade-in duration-300">
-          <div className="bg-gray-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-8 shadow-3xl text-white">
+          <div className="bg-gray-900 border border-white/10 w-full max-w-lg rounded-[3rem] p-8 shadow-3xl text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black tracking-tight flex items-center gap-3"><Settings className="text-pink-500" /> App Settings</h2>
               <button onClick={() => setShowSettings(false)} className="p-3 hover:bg-white/10 rounded-2xl transition">✕</button>
             </div>
 
-            <div className="space-y-6 overflow-y-auto max-h-[65vh] pr-4 pl-4 custom-scrollbar">
+            <div className="space-y-6">
               <div className="grid grid-cols-3 gap-4">
                 {['pomodoro', 'shortBreak', 'longBreak'].map((field) => (
                   <div key={field}>
@@ -443,7 +504,7 @@ const App = () => {
                   <button onClick={playTestAlarm} className="text-[10px] font-bold text-pink-400 hover:text-pink-300 flex items-center gap-1"><Bell size={12} /> Test Sound</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {Object.keys(alarmSounds).map(s => (
+                  {['bell', 'digital', 'chime', 'minimal'].map(s => (
                     <button key={s} onClick={() => setSettings({...settings, alarmSound: s})} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${settings.alarmSound === s ? 'bg-pink-500 border-pink-500 text-white shadow-lg shadow-pink-500/20' : 'bg-white/5 border-white/10 opacity-60'}`}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>
                   ))}
                 </div>
@@ -456,12 +517,9 @@ const App = () => {
                     <button key={track.id} onClick={() => setSettings({...settings, musicTrack: track.id})} className={`px-3 py-3 rounded-xl text-[11px] font-bold transition-all border ${settings.musicTrack === track.id ? 'bg-teal-500 border-teal-500 text-white shadow-lg shadow-teal-500/20' : 'bg-white/5 border-white/10 opacity-60'}`}>{track.name}</button>
                   ))}
                 </div>
-                {settings.musicTrack !== 'none' && (
-                  <p className="text-[10px] text-yellow-400 mt-2 opacity-60">⚠️ Music files need to be configured</p>
-                )}
+                <p className="text-[10px] text-green-400 mt-2 opacity-60">✅ Pure Web Audio API - No dependencies!</p>
               </div>
 
-              {/* Atmosphere Section with New Themes */}
               <div>
                 <label className="block text-[10px] font-black uppercase opacity-40 mb-4">Atmosphere</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -505,7 +563,10 @@ const App = () => {
         </div>
       )}
 
-      <footer className="p-6 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">Designed for Deep Focus & Chill Vibes • {mode.replace('Break', ' Break')} Mode Active</footer>
+      <footer className="p-6 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">
+        Designed for Deep Focus & Chill Vibes • {mode.replace('Break', ' Break')} Mode Active
+        {audioInitialized && <span className="ml-2">🔊</span>}
+      </footer>
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; } 
