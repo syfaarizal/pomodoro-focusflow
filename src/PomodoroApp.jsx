@@ -1,18 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Play, Pause, RotateCcw, Settings, CheckSquare, 
   Volume2, VolumeX, Palette, Music, Sun, Moon, 
   Zap, Bell, ListChecks, Trash2, Plus, CheckCircle2,
   Headphones
 } from 'lucide-react';
-import lofiSound from './assets/music/lo-fi-chill.mp3';
-import jazzSound from './assets/music/jazz.mp3';
-import studySound from './assets/music/study-beats.mp3';
-import rainSound from './assets/music/rain.mp3';
-import digitalAlarm from './assets/alarm/digital.mp3';
-import bellAlarm from './assets/alarm/bell.mp3'
-import chimeAlarm from './assets/alarm/chime.mp3'
-import minimalAlarm from './assets/alarm/minimal.mp3'
 
 const App = () => {
   // --- State Utama ---
@@ -54,8 +46,62 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showTasks, setShowTasks] = useState(true);
 
+  // --- Audio Refs ---
+  const alarmAudio = useRef(null);
+  const bgMusicAudio = useRef(null);
+  const fadeInterval = useRef(null);
+
+  // --- Data Aset (menggunakan placeholder untuk demo) ---
+  const musicList = useMemo(() => [
+    { id: 'none', name: 'No Music', url: null },
+    { id: 'lofi', name: '🎧 Lo-fi Chill', url: null },
+    { id: 'jazz', name: '☕ Jazz Coffee', url: null },
+    { id: 'study', name: '📖 Study Beats', url: null },
+    { id: 'rain', name: '🌧️ Deep Rain', url: null }
+  ], []);
+
+  const backgrounds = useMemo(() => [
+    { id: 'gradient-purple', name: 'Purple Dream', class: 'from-purple-600 via-pink-500 to-orange-400' },
+    { id: 'gradient-blue', name: 'Ocean Vibes', class: 'from-blue-600 via-teal-500 to-emerald-400' },
+    { id: 'gradient-midnight', name: 'Midnight', class: 'from-gray-900 via-blue-900 to-purple-900' },
+    { id: 'gradient-sunset', name: 'Sunset Bloom', class: 'from-orange-500 via-red-500 to-purple-600' },
+    { id: 'gradient-noir', name: 'Crimson Noir', class: 'from-black via-red-950 to-red-800' },
+    { id: 'gradient-slate', name: 'Quiet Stone', class: 'from-zinc-900 via-slate-900 to-stone-900' }
+  ], []);
+
+  // Menggunakan data URLs untuk alarm sounds (placeholder beeps)
+  const alarmSounds = useMemo(() => ({
+    bell: createBeepSound(800, 0.3, 0.5),
+    digital: createBeepSound(1000, 0.2, 0.3),
+    chime: createBeepSound(600, 0.4, 0.6),
+    minimal: createBeepSound(400, 0.2, 0.2)
+  }), []);
+
+  // Fungsi untuk membuat suara beep sederhana
+  function createBeepSound(frequency, duration, volume) {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      return { audioContext, oscillator, gainNode, duration };
+    } catch (e) {
+      console.warn('Web Audio API not supported', e);
+      return null;
+    }
+  }
+
   // --- Audio Logic (Fade Out) ---
-  const stopAlarmWithFade = () => {
+  const stopAlarmWithFade = useCallback(() => {
     if (alarmAudio.current) {
       clearInterval(fadeInterval.current);
       let volume = alarmAudio.current.volume;
@@ -63,75 +109,48 @@ const App = () => {
       fadeInterval.current = setInterval(() => {
         if (volume > 0.05) {
           volume -= 0.05;
-          alarmAudio.current.volume = volume;
+          if (alarmAudio.current) {
+            alarmAudio.current.volume = volume;
+          }
         } else {
           clearInterval(fadeInterval.current);
-          alarmAudio.current.pause();
-          alarmAudio.current.currentTime = 0;
-          alarmAudio.current.volume = settings.alarmVolume; // Reset volume
+          if (alarmAudio.current) {
+            alarmAudio.current.pause();
+            alarmAudio.current.currentTime = 0;
+            alarmAudio.current.volume = settings.alarmVolume;
+          }
         }
       }, 30);
     }
-  };
-
-  // --- Audio Refs ---
-  const alarmAudio = useRef(null);
-  const bgMusicAudio = useRef(null);
-  const fadeInterval = useRef(null);
-
-  // --- Data Aset ---
-  const musicList = [
-    { id: 'none', name: 'No Music', url: null },
-    { id: 'lofi', name: '🎧 Lo-fi Chill', url: lofiSound },
-    { id: 'jazz', name: '☕ Jazz Coffee', url: jazzSound },
-    { id: 'study', name: '📖 Study Beats', url: studySound },
-    { id: 'rain', name: '🌧️ Deep Rain', url: rainSound }
-  ];
-
-  const backgrounds = [
-    { id: 'gradient-purple', name: 'Purple Dream', class: 'from-purple-600 via-pink-500 to-orange-400' },
-    { id: 'gradient-blue', name: 'Ocean Vibes', class: 'from-blue-600 via-teal-500 to-emerald-400' },
-    { id: 'gradient-midnight', name: 'Midnight', class: 'from-gray-900 via-blue-900 to-purple-900' },
-    { id: 'gradient-sunset', name: 'Sunset Bloom', class: 'from-orange-500 via-red-500 to-purple-600' },
-    { id: 'gradient-noir', name: 'Crimson Noir', class: 'from-black via-red-950 to-red-800' }, // Tema Hitam Merah
-    { id: 'gradient-slate', name: 'Quiet Stone', class: 'from-zinc-900 via-slate-900 to-stone-900' } // Tema Netral
-  ];
-
-  const alarmSounds = {
-    bell: bellAlarm,
-    digital: digitalAlarm,
-    chime: chimeAlarm,
-    minimal: minimalAlarm
-  };
-
-  // --- Logika Timer ---
-  useEffect(() => {
-    let interval = null;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (isActive && timeLeft === 0) {
-      handleTimerComplete();
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [settings.alarmVolume]);
 
   // Fungsi untuk menghentikan alarm
-  const stopAlarm = () => {
+  const stopAlarm = useCallback(() => {
     if (alarmAudio.current) {
       alarmAudio.current.pause();
       alarmAudio.current.currentTime = 0;
     }
-  };
+  }, []);
 
-  const handleTimerComplete = () => {
-    setIsActive(false);
-    if (alarmAudio.current) {
-      alarmAudio.current.volume = settings.alarmVolume;
-      alarmAudio.current.currentTime = 0;
-      alarmAudio.current.play().catch((e) => console.warn("Audio blocked", e));
+  // Play alarm menggunakan Web Audio API
+  const playAlarmSound = useCallback(() => {
+    const soundData = alarmSounds[settings.alarmSound];
+    if (soundData && soundData.oscillator) {
+      try {
+        const { audioContext, oscillator, gainNode, duration } = soundData;
+        gainNode.gain.setValueAtTime(settings.alarmVolume, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+      } catch (e) {
+        console.warn('Error playing alarm', e);
+      }
     }
+  }, [settings.alarmSound, settings.alarmVolume, alarmSounds]);
+
+  const handleTimerComplete = useCallback(() => {
+    setIsActive(false);
+    playAlarmSound();
 
     if (mode === 'pomodoro') {
       const nextCount = completedPomodoros + 1;
@@ -139,39 +158,91 @@ const App = () => {
       const isLongBreak = nextCount % 4 === 0;
       const nextMode = isLongBreak ? 'longBreak' : 'shortBreak';
       setMode(nextMode);
-      if (settings.autoStartBreaks) setIsActive(true);
+      if (settings.autoStartBreaks) {
+        setTimeout(() => setIsActive(true), 100);
+      }
     } else {
       setMode('pomodoro');
-      if (settings.autoStartPomodoros) setIsActive(true);
+      if (settings.autoStartPomodoros) {
+        setTimeout(() => setIsActive(true), 100);
+      }
     }
-  };
+  }, [mode, completedPomodoros, settings.autoStartBreaks, settings.autoStartPomodoros, playAlarmSound]);
 
+  // --- Logika Timer (FIXED) ---
+  useEffect(() => {
+    let interval = null;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (isActive && timeLeft === 0) {
+      handleTimerComplete();
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isActive, timeLeft, handleTimerComplete]);
+
+  // Reset timer ketika mode berubah dan timer tidak aktif
   useEffect(() => {
     if (!isActive) {
       setTimeLeft(modeTimes[mode]);
     }
-  }, [modeTimes, mode]);
+  }, [modeTimes, mode, isActive]);
 
+  // Inisialisasi audio elements
+  useEffect(() => {
+    alarmAudio.current = new Audio();
+    bgMusicAudio.current = new Audio();
+    bgMusicAudio.current.loop = true;
+
+    return () => {
+      if (alarmAudio.current) {
+        alarmAudio.current.pause();
+        alarmAudio.current = null;
+      }
+      if (bgMusicAudio.current) {
+        bgMusicAudio.current.pause();
+        bgMusicAudio.current = null;
+      }
+      if (fadeInterval.current) {
+        clearInterval(fadeInterval.current);
+      }
+    };
+  }, []);
+
+  // Handle music playback
   useEffect(() => {
     const currentTrack = musicList.find(m => m.id === settings.musicTrack);
+    
     if (bgMusicAudio.current) {
       bgMusicAudio.current.volume = settings.musicVolume;
 
-      bgMusicAudio.current.load();
-
-      if (isMusicPlaying && currentTrack && currentTrack.url) {
-        bgMusicAudio.current.play().catch(() => setIsMusicPlaying(false));
+      if (currentTrack && currentTrack.url) {
+        bgMusicAudio.current.src = currentTrack.url;
+        
+        if (isMusicPlaying) {
+          bgMusicAudio.current.play().catch(() => {
+            console.warn('Music playback failed');
+            setIsMusicPlaying(false);
+          });
+        } else {
+          bgMusicAudio.current.pause();
+        }
       } else {
         bgMusicAudio.current.pause();
+        if (settings.musicTrack !== 'none') {
+          console.log('Music feature requires audio files to be configured');
+        }
       }
     }
-  }, [settings.musicVolume, isMusicPlaying, settings.musicTrack]);
-
-  useEffect(() => {
-    if (alarmAudio.current) {
-      alarmAudio.current.load();
-    }
-  }, [settings.alarmSound]);
+  }, [settings.musicVolume, isMusicPlaying, settings.musicTrack, musicList]);
 
   const toggleTimer = () => {
     if (isActive) stopAlarmWithFade();
@@ -192,16 +263,15 @@ const App = () => {
   };
 
   const playTestAlarm = () => {
-    if (alarmAudio.current && alarmSounds[settings.alarmSound]) {
-      alarmAudio.current.volume = settings.alarmVolume;
-      alarmAudio.current.currentTime = 0;
-      alarmAudio.current.play().catch(e => console.error("Test play failed", e));
-    }
+    playAlarmSound();
   };
 
   const handleSaveSettings = () => {
     setIsSaved(true);
-    setTimeout(() => { setIsSaved(false); setShowSettings(false); }, 800);
+    setTimeout(() => { 
+      setIsSaved(false); 
+      setShowSettings(false); 
+    }, 800);
   };
 
   const formatTime = (seconds) => {
@@ -217,9 +287,6 @@ const App = () => {
 
   return (
     <div className={`min-h-screen transition-all duration-700 flex flex-col font-sans bg-gradient-to-br ${currentBg.class} ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-      
-      <audio ref={bgMusicAudio} src={currentMusicUrl || undefined} loop preload="auto" />
-      <audio ref={alarmAudio} src={alarmSounds[settings.alarmSound] || undefined} preload="auto" />
 
       {/* Header */}
       <header className="p-6 flex justify-between items-center max-w-6xl mx-auto w-full">
@@ -389,6 +456,9 @@ const App = () => {
                     <button key={track.id} onClick={() => setSettings({...settings, musicTrack: track.id})} className={`px-3 py-3 rounded-xl text-[11px] font-bold transition-all border ${settings.musicTrack === track.id ? 'bg-teal-500 border-teal-500 text-white shadow-lg shadow-teal-500/20' : 'bg-white/5 border-white/10 opacity-60'}`}>{track.name}</button>
                   ))}
                 </div>
+                {settings.musicTrack !== 'none' && (
+                  <p className="text-[10px] text-yellow-400 mt-2 opacity-60">⚠️ Music files need to be configured</p>
+                )}
               </div>
 
               {/* Atmosphere Section with New Themes */}
@@ -437,7 +507,14 @@ const App = () => {
 
       <footer className="p-6 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">Designed for Deep Focus & Chill Vibes • {mode.replace('Break', ' Break')} Mode Active</footer>
 
-      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; } @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } } @keyframes slide-in-from-right-10 { from { transform: translateX(10%); opacity: 0; } to { transform: translateX(0); opacity: 1; } } .animate-in { animation: fade-in 0.3s ease-out; }`}</style>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; } 
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } 
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; } 
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } } 
+        @keyframes slide-in-from-right-10 { from { transform: translateX(10%); opacity: 0; } to { transform: translateX(0); opacity: 1; } } 
+        .animate-in { animation: fade-in 0.3s ease-out; }
+      `}</style>
     </div>
   );
 };
